@@ -1,0 +1,254 @@
+{\rtf1\ansi\ansicpg1251\cocoartf2580
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fmodern\fcharset0 Courier;\f1\fmodern\fcharset0 Courier-Oblique;\f2\fnil\fcharset0 Menlo-Regular;
+}
+{\colortbl;\red255\green255\blue255;\red174\green176\blue183;\red23\green23\blue26;\red195\green123\blue90;
+\red185\green101\blue173;\red71\green149\blue242;\red164\green160\blue78;\red38\green157\blue169;\red89\green158\blue96;
+}
+{\*\expandedcolortbl;;\csgenericrgb\c68235\c69020\c71765;\csgenericrgb\c9020\c9020\c10196;\csgenericrgb\c76471\c48235\c35294;
+\csgenericrgb\c72549\c39608\c67843;\csgenericrgb\c27843\c58431\c94902;\csgenericrgb\c64314\c62745\c30588;\csgenericrgb\c14902\c61569\c66275;\csgenericrgb\c34902\c61961\c37647;
+}
+\paperw11900\paperh16840\margl1440\margr1440\vieww26200\viewh18940\viewkind0
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f0\fs26 \cf2 \cb3 \
+\cf4 public class \cf2 ExcelToDbChange \cf4 implements \cf2 CustomSqlChange \{\
+\
+    \cf4 private static final \cf2 Logger 
+\f1\i \cf5 log 
+\f0\i0 \cf2 = LoggerFactory.
+\f1\i getLogger
+\f0\i0 (ExcelToDbChange.\cf4 class\cf2 );\
+    \cf4 private \cf2 String \cf5 fileName\cf2 ;\
+\
+    \cf4 private \cf2 ResourceAccessor \cf5 resourceAccessor\cf2 ;\
+\
+    \cf4 public void \cf6 setFileName\cf2 (String fileName) \{\
+        \cf4 this\cf2 .\cf5 fileName \cf2 = fileName;\
+    \}\
+\
+    \cf7 @Override\
+    \cf4 public \cf2 SqlStatement[] \cf6 generateStatements\cf2 (Database database) \cf4 throws \cf2 CustomChangeException \{\
+        List<SqlStatement> statementList = \cf4 new \cf2 ArrayList<>();\
+        \cf4 try \cf2 (Workbook workbook = getWorkbookFromFile(\cf5 fileName\cf2 )) \{\
+            Sheet sheet = workbook.getSheetAt(\cf8 0\cf2 );\
+            DataFormatter formatter = \cf4 new \cf2 DataFormatter();\
+\
+            \cf4 boolean \cf2 isFirstRow = \cf4 true\cf2 ;\
+            \cf4 for \cf2 (Row row : sheet) \{\
+                \cf4 if \cf2 (isFirstRow) \{\
+                    isFirstRow = \cf4 false\cf2 ;\
+                    \cf4 continue\cf2 ;\
+                \}\
+\
+                RawSqlStatement sqlStatement = processRow(row, formatter);\
+                \cf4 if \cf2 (sqlStatement != \cf4 null\cf2 ) \{\
+                    statementList.add(sqlStatement);\
+                \}\
+            \}\
+        \} \cf4 catch \cf2 (IOException e) \{\
+            \cf4 throw new \cf2 CustomChangeException(\cf9 "
+\f2 \uc0\u1053 \u1077 
+\f0  
+\f2 \uc0\u1091 \u1076 \u1072 \u1083 \u1086 \u1089 \u1100 
+\f0  
+\f2 \uc0\u1082 \u1086 \u1085 \u1074 \u1077 \u1088 \u1090 \u1080 \u1088 \u1086 \u1074 \u1072 \u1090 \u1100 
+\f0  
+\f2 \uc0\u1092 \u1072 \u1081 \u1083 
+\f0 "\cf2 , e);\
+        \}\
+        \cf4 return \cf2 statementList.toArray(\cf4 new \cf2 SqlStatement[\cf8 0\cf2 ]);\
+    \}\
+\
+    \cf7 @Override\
+    \cf4 public \cf2 String \cf6 getConfirmationMessage\cf2 () \{\
+        \cf4 return \cf9 "
+\f2 \uc0\u1044 \u1072 \u1085 \u1085 \u1099 \u1077 
+\f0  
+\f2 \uc0\u1080 \u1079 
+\f0  
+\f2 \uc0\u1092 \u1072 \u1081 \u1083 \u1072 
+\f0  " \cf2 + \cf5 fileName \cf2 + \cf9 " 
+\f2 \uc0\u1091 \u1089 \u1087 \u1077 \u1096 \u1085 \u1086 
+\f0  
+\f2 \uc0\u1079 \u1072 \u1075 \u1088 \u1091 \u1078 \u1077 \u1085 \u1099 
+\f0  
+\f2 \uc0\u1074 
+\f0  
+\f2 \uc0\u1090 \u1072 \u1073 \u1083 \u1080 \u1094 \u1091 
+\f0  clients"\cf2 ;\
+    \}\
+\
+    \cf7 @Override\
+    \cf4 public void \cf6 setUp\cf2 () \cf4 throws \cf2 SetupException \{\
+    \}\
+\
+    \cf7 @Override\
+    \cf4 public void \cf6 setFileOpener\cf2 (ResourceAccessor resourceAccessor) \{\
+        \cf4 this\cf2 .\cf5 resourceAccessor \cf2 = resourceAccessor;\
+    \}\
+\
+    \cf7 @Override\
+    \cf4 public \cf2 ValidationErrors \cf6 validate\cf2 (Database database) \{\
+        \cf4 return null\cf2 ;\
+    \}\
+\
+    \cf4 private \cf2 String \cf6 escapeSql\cf2 (String data) \{\
+        \cf4 if \cf2 (data == \cf4 null\cf2 ) \{\
+            \cf4 return \cf9 ""\cf2 ;\
+        \}\
+        \cf4 return \cf2 data.replace(\cf9 "'"\cf2 , \cf9 "''"\cf2 );\
+    \}\
+\
+    \cf4 private \cf2 RawSqlStatement \cf6 processRow\cf2 (Row row, DataFormatter formatter) \{\
+        \cf4 try \cf2 \{\
+            String fullNameRow = getStringValue(row.getCell(\cf8 1\cf2 ));\
+            \cf4 if \cf2 (fullNameRow == \cf4 null \cf2 || fullNameRow.trim().isEmpty()) \{\
+                
+\f1\i \cf5 log
+\f0\i0 \cf2 .info(\cf9 "
+\f2 \uc0\u1055 \u1088 \u1086 \u1087 \u1091 \u1089 \u1082 
+\f0  
+\f2 \uc0\u1089 \u1090 \u1088 \u1086 \u1082 \u1080 
+\f0  \cf4 \{\}\cf9 : 
+\f2 \uc0\u1085 \u1077 \u1082 \u1086 \u1088 \u1088 \u1077 \u1082 \u1090 \u1085 \u1086 \u1077 
+\f0  
+\f2 \uc0\u1079 \u1085 \u1072 \u1095 \u1077 \u1085 \u1080 \u1077 
+\f0  
+\f2 \uc0\u1087 \u1086 \u1083 \u1103 
+\f0  full_name"\cf2 , row.getRowNum() + \cf8 1\cf2 );\
+                \cf4 return null\cf2 ;\
+            \}\
+\
+            String addressRow = getStringValue(row.getCell(\cf8 2\cf2 ));\
+            \cf4 if \cf2 (addressRow == \cf4 null \cf2 || addressRow.trim().isEmpty()) \{\
+                
+\f1\i \cf5 log
+\f0\i0 \cf2 .info(\cf9 "
+\f2 \uc0\u1055 \u1088 \u1086 \u1087 \u1091 \u1089 \u1082 
+\f0  
+\f2 \uc0\u1089 \u1090 \u1088 \u1086 \u1082 \u1080 
+\f0  \cf4 \{\}\cf9 : 
+\f2 \uc0\u1085 \u1077 \u1082 \u1086 \u1088 \u1088 \u1077 \u1082 \u1090 \u1085 \u1086 \u1077 
+\f0  
+\f2 \uc0\u1079 \u1085 \u1072 \u1095 \u1077 \u1085 \u1080 \u1077 
+\f0  
+\f2 \uc0\u1087 \u1086 \u1083 \u1103 
+\f0  address"\cf2 , row.getRowNum() + \cf8 1\cf2 );\
+                \cf4 return null\cf2 ;\
+            \}\
+\
+            String fullName = escapeSql(fullNameRow);\
+            String address = escapeSql(addressRow);\
+            String paymentAccountNumber = escapeSql(formatter.formatCellValue(row.getCell(\cf8 3\cf2 )));\
+            String bankDetails = escapeSql(formatter.formatCellValue(row.getCell(\cf8 4\cf2 )));\
+\
+            Boolean isActive = getBooleanValue(row.getCell(\cf8 5\cf2 ));\
+            \cf4 if \cf2 (isActive == \cf4 null\cf2 ) \{\
+                
+\f1\i \cf5 log
+\f0\i0 \cf2 .info(\cf9 "
+\f2 \uc0\u1055 \u1088 \u1086 \u1087 \u1091 \u1089 \u1082 
+\f0  
+\f2 \uc0\u1089 \u1090 \u1088 \u1086 \u1082 \u1080 
+\f0  \cf4 \{\}\cf9 : 
+\f2 \uc0\u1085 \u1077 \u1082 \u1086 \u1088 \u1088 \u1077 \u1082 \u1090 \u1085 \u1086 \u1077 
+\f0  
+\f2 \uc0\u1079 \u1085 \u1072 \u1095 \u1077 \u1085 \u1080 \u1077 
+\f0  
+\f2 \uc0\u1087 \u1086 \u1083 \u1103 
+\f0  isActive"\cf2 , row.getRowNum() + \cf8 1\cf2 );\
+                \cf4 return null\cf2 ;\
+            \}\
+\
+            String sql = String.
+\f1\i format
+\f0\i0 ((\cf9 "INSERT INTO clients (full_name, address, payer_account_number, bank_details, is_active)"\
+                            \cf2 + \cf9 "VALUES ('%s','%s','%s','%s','%b') ON CONFLICT (payer_account_number) DO NOTHING"\cf2 ),\
+                    fullName, address, paymentAccountNumber, bankDetails, isActive);\
+\
+            \cf4 return new \cf2 RawSqlStatement(sql);\
+\
+        \} \cf4 catch \cf2 (Exception e) \{\
+            System.
+\f1\i \cf5 out
+\f0\i0 \cf2 .println(\cf9 "
+\f2 \uc0\u1054 \u1096 \u1080 \u1073 \u1082 \u1072 
+\f0  
+\f2 \uc0\u1086 \u1073 \u1088 \u1072 \u1073 \u1086 \u1090 \u1082 \u1080 
+\f0  
+\f2 \uc0\u1089 \u1090 \u1088 \u1086 \u1082 \u1080 
+\f0 : " \cf2 + (row.getRowNum() + \cf8 1\cf2 ) + \cf9 ". 
+\f2 \uc0\u1057 \u1090 \u1088 \u1086 \u1082 \u1072 
+\f0  
+\f2 \uc0\u1073 \u1091 \u1076 \u1077 \u1090 
+\f0  
+\f2 \uc0\u1087 \u1088 \u1086 \u1087 \u1091 \u1097 \u1077 \u1085 \u1072 
+\f0 "\cf2 );\
+            \cf4 return null\cf2 ;\
+        \}\
+    \}\
+\
+    \cf4 private \cf2 Workbook \cf6 getWorkbookFromFile\cf2 (String fileName) \cf4 throws \cf2 CustomChangeException \{\
+        \cf4 try \cf2 \{\
+            Resource resource = \cf5 resourceAccessor\cf2 .get(fileName);\
+            \cf4 if \cf2 (resource == \cf4 null\cf2 ) \{\
+                \cf4 throw new \cf2 CustomChangeException(\cf9 "
+\f2 \uc0\u1060 \u1072 \u1081 \u1083 
+\f0  " \cf2 + fileName + \cf9 " 
+\f2 \uc0\u1085 \u1077 
+\f0  
+\f2 \uc0\u1085 \u1072 \u1081 \u1076 \u1077 \u1085 
+\f0 "\cf2 );\
+            \}\
+            InputStream inputStream = resource.openInputStream();\
+            \cf4 return new \cf2 XSSFWorkbook(inputStream);\
+        \} \cf4 catch \cf2 (Exception e) \{\
+            \cf4 throw new \cf2 CustomChangeException(\cf9 "
+\f2 \uc0\u1053 \u1077 
+\f0  
+\f2 \uc0\u1091 \u1076 \u1072 \u1083 \u1086 \u1089 \u1100 
+\f0  
+\f2 \uc0\u1082 \u1086 \u1085 \u1074 \u1077 \u1088 \u1090 \u1080 \u1088 \u1086 \u1074 \u1072 \u1090 \u1100 
+\f0  
+\f2 \uc0\u1092 \u1072 \u1081 \u1083 
+\f0 "\cf2 , e);\
+        \}\
+    \}\
+\
+    \cf4 private \cf2 String \cf6 getStringValue\cf2 (Cell cell) \{\
+        \cf4 if \cf2 (cell == \cf4 null\cf2 ) \{\
+            \cf4 return null\cf2 ;\
+        \}\
+        \cf4 if \cf2 (cell.getCellType() == CellType.
+\f1\i \cf5 STRING
+\f0\i0 \cf2 ) \{\
+            \cf4 return \cf2 cell.getStringCellValue();\
+        \}\
+        \cf4 else return null\cf2 ;\
+    \}\
+\
+    \cf4 private \cf2 Boolean \cf6 getBooleanValue\cf2 (Cell cell) \{\
+        \cf4 if \cf2 (cell == \cf4 null\cf2 ) \{\
+            \cf4 return null\cf2 ;\
+        \}\
+        \cf4 switch \cf2 (cell.getCellType()) \{\
+            \cf4 case 
+\f1\i \cf5 BOOLEAN
+\f0\i0 \cf2 :\
+                \cf4 return \cf2 cell.getBooleanCellValue();\
+            \cf4 case 
+\f1\i \cf5 STRING
+\f0\i0 \cf2 :\
+                String value = cell.getStringCellValue().trim();\
+                \cf4 if \cf2 (\cf9 "true"\cf2 .equalsIgnoreCase(value)) \{\
+                    \cf4 return true\cf2 ;\
+                \}\
+                \cf4 if \cf2 (\cf9 "false"\cf2 .equalsIgnoreCase(value)) \{\
+                    \cf4 return false\cf2 ;\
+                \}\
+                \cf4 break\cf2 ;\
+        \}\
+        \cf4 return null\cf2 ;\
+    \}\
+\}\
+}
