@@ -1,0 +1,163 @@
+package crm_base.db_service.liquibase.custom;
+
+import liquibase.change.custom.CustomSqlChange;
+import liquibase.database.Database;
+import liquibase.exception.CustomChangeException;
+import liquibase.exception.SetupException;
+import liquibase.exception.ValidationErrors;
+import liquibase.resource.Resource;
+import liquibase.resource.ResourceAccessor;
+import liquibase.statement.SqlStatement;
+import liquibase.statement.core.RawSqlStatement;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+
+public class ExcelToDbChange implements CustomSqlChange {
+
+    private static final Logger log = LoggerFactory.getLogger(ExcelToDbChange.class);
+    private String fileName;
+
+    private ResourceAccessor resourceAccessor;
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    @Override
+    public SqlStatement[] generateStatements(Database database) throws CustomChangeException {
+        List<SqlStatement> statementList = new ArrayList<>();
+        try (Workbook workbook = getWorkbookFromFile(fileName)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            DataFormatter formatter = new DataFormatter();
+
+            boolean isFirstRow = true;
+            for (Row row : sheet) {
+                if (isFirstRow) {
+                    isFirstRow = false;
+                    continue;
+                }
+
+                RawSqlStatement sqlStatement = processRow(row, formatter);
+                if (sqlStatement != null) {
+                    statementList.add(sqlStatement);
+                }
+            }
+        } catch (IOException e) {
+            throw new CustomChangeException("Не удалось конвертировать файл", e);
+        }
+        return statementList.toArray(new SqlStatement[0]);
+    }
+
+    @Override
+    public String getConfirmationMessage() {
+        return "Данные из файла " + fileName + " успешно загружены в таблицу clients";
+    }
+
+    @Override
+    public void setUp() throws SetupException {
+    }
+
+    @Override
+    public void setFileOpener(ResourceAccessor resourceAccessor) {
+        this.resourceAccessor = resourceAccessor;
+    }
+
+    @Override
+    public ValidationErrors validate(Database database) {
+        return null;
+    }
+
+    private String escapeSql(String data) {
+        if (data == null) {
+            return "";
+        }
+        return data.replace("'", "''");
+    }
+
+    private RawSqlStatement processRow(Row row, DataFormatter formatter) {
+        try {
+            String fullNameRow = getStringValue(row.getCell(1));
+            if (fullNameRow == null || fullNameRow.trim().isEmpty()) {
+                log.info("Пропуск строки {}: некорректное значение поля full_name", row.getRowNum() + 1);
+                return null;
+            }
+
+            String addressRow = getStringValue(row.getCell(2));
+            if (addressRow == null || addressRow.trim().isEmpty()) {
+                log.info("Пропуск строки {}: некорректное значение поля address", row.getRowNum() + 1);
+                return null;
+            }
+
+            String fullName = escapeSql(fullNameRow);
+            String address = escapeSql(addressRow);
+            String paymentAccountNumber = escapeSql(formatter.formatCellValue(row.getCell(3)));
+            String bankDetails = escapeSql(formatter.formatCellValue(row.getCell(4)));
+
+            Boolean isActive = getBooleanValue(row.getCell(5));
+            if (isActive == null) {
+                log.info("Пропуск строки {}: некорректное значение поля isActive", row.getRowNum() + 1);
+                return null;
+            }
+
+            String sql = String.format(("INSERT INTO clients (full_name, address, payer_account_number, bank_details, is_active)"
+                            + "VALUES ('%s','%s','%s','%s','%b') ON CONFLICT (payer_account_number) DO NOTHING"),
+                    fullName, address, paymentAccountNumber, bankDetails, isActive);
+
+            return new RawSqlStatement(sql);
+
+        } catch (Exception e) {
+            System.out.println("Ошибка обработки строки: " + (row.getRowNum() + 1) + ". Строка будет пропущена");
+            return null;
+        }
+    }
+
+    private Workbook getWorkbookFromFile(String fileName) throws CustomChangeException {
+        try {
+            Resource resource = resourceAccessor.get(fileName);
+            if (resource == null) {
+                throw new CustomChangeException("Файл " + fileName + " не найден");
+            }
+            InputStream inputStream = resource.openInputStream();
+            return new XSSFWorkbook(inputStream);
+        } catch (Exception e) {
+            throw new CustomChangeException("Не удалось конвертировать файл", e);
+        }
+    }
+
+    private String getStringValue(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+        if (cell.getCellType() == CellType.STRING) {
+            return cell.getStringCellValue();
+        }
+        else return null;
+    }
+
+    private Boolean getBooleanValue(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+        switch (cell.getCellType()) {
+            case BOOLEAN:
+                return cell.getBooleanCellValue();
+            case STRING:
+                String value = cell.getStringCellValue().trim();
+                if ("true".equalsIgnoreCase(value)) {
+                    return true;
+                }
+                if ("false".equalsIgnoreCase(value)) {
+                    return false;
+                }
+                break;
+        }
+        return null;
+    }
+}
